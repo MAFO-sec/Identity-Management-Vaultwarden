@@ -1,0 +1,69 @@
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    restart: unless-stopped
+    environment:
+      TZ: "Europe/Madrid"
+      MP_MAX_MESSAGES: "500"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    volumes:
+      - ./data/mailpit:/data
+    ports:
+      - "8025:8025" # Interfaz web para ver correos
+      - "1025:1025" # Puerto SMTP interno
+    networks:
+      - vault_net
+
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    depends_on:
+      - mailpit
+    environment:
+      TZ: "Europe/Madrid"
+      DOMAIN: "https://vault.brswindows.lab"
+      # ¡IMPORTANTE! Cambia este token por uno seguro antes de desplegar
+      ADMIN_TOKEN: "*************"
+      ADMIN_ENABLED: "true"
+      SIGNUPS_ALLOWED: "false"
+      INVITATIONS_ALLOWED: "true"
+      ORG_GROUPS_ENABLED: "true"
+      SHOW_PASSWORD_HINT: "false"
+      WEB_VAULT_ENABLED: "true"
+      LOG_LEVEL: "info"
+      EXTENDED_LOGGING: "true"
+      # Configuración de Correo apuntando a Mailpit
+      SMTP_HOST: "mailpit"
+      SMTP_PORT: "1025"
+      SMTP_SECURITY: "off"
+      SMTP_FROM: "vault@brswindows.lab"
+      SMTP_FROM_NAME: "Vaultwarden"
+      SMTP_TIMEOUT: "15"
+    volumes:
+      - ./data/vaultwarden:/data
+    expose:
+      - "80"
+    networks:
+      - vault_net
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: vaultwarden_nginx
+    restart: unless-stopped
+    depends_on:
+      - vaultwarden
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - vault_net
+
+networks:
+  vault_net:
+  driver: bridge
